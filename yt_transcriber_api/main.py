@@ -1,4 +1,3 @@
-import re
 import json
 import html
 import requests
@@ -13,7 +12,7 @@ HEADERS = {
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor Directo v4 activo"}
+    return {"message": "✅ Transcriptor Directo v5 activo"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
@@ -24,18 +23,21 @@ def get_transcript(video_id: str, lang: str = "es"):
             timeout=15
         )
 
-        match = re.search(r'"captionTracks":(\[.*?\])', r.text)
-        if not match:
+        # Buscar el inicio de captionTracks en la pagina
+        idx = r.text.find('"captionTracks":')
+        if idx == -1:
             raise Exception("Este video no tiene subtitulos disponibles")
 
-        # Decodifica TODOS los caracteres Unicode escapados de una sola vez
-        tracks_str = re.sub(
-            r'\\u([0-9a-fA-F]{4})',
-            lambda m: chr(int(m.group(1), 16)),
-            match.group(1)
-        )
-        tracks = json.loads(tracks_str)
+        # Encontrar el inicio del arreglo JSON
+        arr_start = r.text.index('[', idx)
 
+        # Usar el decoder de Python directamente (maneja unicode, brackets anidados, etc)
+        try:
+            tracks, _ = json.JSONDecoder().raw_decode(r.text, arr_start)
+        except json.JSONDecodeError:
+            raise Exception("Error al procesar los subtitulos del video")
+
+        # Seleccionar el track del idioma preferido
         track_url = None
         for lang_try in [lang, "es", "en", "pt", "de"]:
             for track in tracks:
@@ -51,6 +53,7 @@ def get_transcript(video_id: str, lang: str = "es"):
         if not track_url:
             raise Exception("No se encontro URL de subtitulos")
 
+        # Descargar el transcript en formato JSON3
         tr = requests.get(track_url + "&fmt=json3", headers=HEADERS, timeout=15)
         data = tr.json()
 
