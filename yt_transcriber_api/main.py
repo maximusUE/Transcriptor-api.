@@ -19,7 +19,7 @@ def get_transcript(video_id: str, lang: str = "es"):
                 "--sub-langs", f"{lang},es,en",
                 "--sub-format", "vtt",
                 "--cookies", "cookies.txt",
-                "--"--js-runtimes", "node:/usr/local/bin/node",
+                "--js-runtimes", "node:/usr/local/bin/node",
                 "-o", f"{tmpdir}/sub",
                 url
             ], capture_output=True, text=True, timeout=60)
