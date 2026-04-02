@@ -13,16 +13,18 @@ def get_transcript(video_id: str, lang: str = "es"):
         try:
             url = f"https://www.youtube.com/watch?v={video_id}"
             result = subprocess.run([
-                "yt-dlp",
-                "--skip-download",
-                "--write-auto-sub",
-                "--sub-langs", f"{lang},es,en",
-                "--sub-format", "vtt",
-                "--cookies", "cookies.txt",
-                "--js-runtimes", "node:/usr/local/bin/node",
-                "-o", f"{tmpdir}/sub",
-                url
-            ], capture_output=True, text=True, timeout=60)
+              "yt-dlp",
+              "--skip-download",
+              "--write-auto-sub",
+              "--sub-langs", f"{lang},es,en",
+              "--sub-format", "vtt",
+              "--cookies", "cookies.txt",
+              "--extractor-args", "youtube:player_client=ios",
+              "-o", f"{tmpdir}/sub",
+               url
+                    ], capture_output=True, text=True, timeout=60)
+
+    
 
             vtt_files = glob.glob(f"{tmpdir}/*.vtt")
             if not vtt_files:
