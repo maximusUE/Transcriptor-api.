@@ -1,9 +1,10 @@
 import json
 import html
 import requests
+import xml.etree.ElementTree as ET
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI(title="Logisk YT Transcriber - Directo")
+app = FastAPI(title="Logisk YT Transcriber")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
@@ -12,7 +13,7 @@ HEADERS = {
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor Directo v6 activo"}
+    return {"message": "Transcriptor v7 activo"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
@@ -32,7 +33,7 @@ def get_transcript(video_id: str, lang: str = "es"):
         try:
             tracks, _ = json.JSONDecoder().raw_decode(r.text, arr_start)
         except json.JSONDecodeError:
-            raise Exception("Error al procesar los subtitulos del video")
+            raise Exception("Error al procesar los subtitulos")
 
         track_url = None
         for lang_try in [lang, "es", "en", "pt", "de"]:
@@ -52,15 +53,22 @@ def get_transcript(video_id: str, lang: str = "es"):
         if not track_url.startswith("http"):
             track_url = "https://www.youtube.com" + track_url
 
-        tr = requests.get(track_url + "&fmt=json3", headers=HEADERS, timeout=15)
-        data = tr.json()
+        # Pedir el XML sin modificar el formato
+        tr = requests.get(track_url, headers=HEADERS, timeout=15)
 
+        if not tr.text or tr.status_code != 200:
+            raise Exception(f"Respuesta vacia del servidor de subtitulos: {tr.status_code}")
+
+        # Parsear el XML de subtitulos
+        root = ET.fromstring(tr.content)
         parts = []
-        for event in data.get("events", []):
-            for seg in event.get("segs", []):
-                t = seg.get("utf8", "").strip()
-                if t and t != "\n":
-                    parts.append(html.unescape(t))
+        for text_elem in root.iter("text"):
+            t = html.unescape(text_elem.text or "").strip()
+            if t:
+                parts.append(t)
+
+        if not parts:
+            raise Exception("Transcript vacio para este video")
 
         return {
             "success": True,
