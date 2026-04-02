@@ -10,7 +10,7 @@ HEADERS = {
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor Directo iPhone"}
+    return {"message": "✅ Transcriptor Directo v4"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
@@ -20,7 +20,11 @@ def get_transcript(video_id: str, lang: str = "es"):
         if not match:
             raise Exception("Este video no tiene subtítulos disponibles")
         
-        tracks = json.loads(match.group(1))
+        # Decodificar caracteres Unicode escapados antes de parsear
+        tracks_str = match.group(1)
+        tracks_str = tracks_str.replace('\\u0026', '&').replace('\\u003d', '=').replace('\\u003c', '<').replace('\\u003e', '>')
+        tracks = json.loads(tracks_str)
+        
         track_url = None
         for lang_try in [lang, "es", "en", "pt", "de"]:
             for track in tracks:
