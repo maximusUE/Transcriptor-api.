@@ -1,23 +1,23 @@
 from fastapi import FastAPI, HTTPException
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+from youtube_transcript_api import YouTubeTranscriptApi
 
 app = FastAPI(title="Logisk YouTube Transcriber")
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor Activo (Python + Cookies 🍪)"}
+    return {"message": "✅ Transcriptor v2 (API nueva + Cookies 🍪)"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
     try:
-        # Modo Python directo con cookies para pasar el bloqueo de IP
-        transcript_list = YouTubeTranscriptApi.get_transcript(
-            video_id,
-            languages=[lang, "es", "en", "pt", "de"],
-            cookies="cookies.txt"
-        )
+        # Nueva API v0.6+: se instancia la clase con las cookies
+        ytt_api = YouTubeTranscriptApi(cookies="cookies.txt")
         
-        transcript_text = " ".join([item['text'] for item in transcript_list])
+        # Obtener transcripción con idiomas preferidos
+        fetched = ytt_api.fetch(video_id, languages=[lang, "es", "en", "pt", "de"])
+        
+        # Unir todos los textos en uno solo
+        transcript_text = " ".join([item.text for item in fetched])
         
         return {
             "success": True,
@@ -25,10 +25,5 @@ def get_transcript(video_id: str, lang: str = "es"):
             "transcript_text": transcript_text.replace('\n', ' ')
         }
 
-    except NoTranscriptFound:
-        raise HTTPException(status_code=400, detail=f"No hay transcripción para el video {video_id}")
-    except TranscriptsDisabled:
-        raise HTTPException(status_code=400, detail=f"Las transcripciones están deshabilitadas para {video_id}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
