@@ -1,4 +1,7 @@
-import re, json, html, requests
+import re
+import json
+import html
+import requests
 from fastapi import FastAPI, HTTPException
 
 app = FastAPI(title="Logisk YT Transcriber - Directo")
@@ -10,21 +13,29 @@ HEADERS = {
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor Directo v4"}
+    return {"message": "✅ Transcriptor Directo v4 activo"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
     try:
-        r = requests.get(f"https://www.youtube.com/watch?v={video_id}", headers=HEADERS, timeout=15)
+        r = requests.get(
+            f"https://www.youtube.com/watch?v={video_id}",
+            headers=HEADERS,
+            timeout=15
+        )
+
         match = re.search(r'"captionTracks":(\[.*?\])', r.text)
         if not match:
-            raise Exception("Este video no tiene subtítulos disponibles")
-        
-        # Decodificar caracteres Unicode escapados antes de parsear
-        tracks_str = match.group(1)
-        tracks_str = tracks_str.replace('\\u0026', '&').replace('\\u003d', '=').replace('\\u003c', '<').replace('\\u003e', '>')
+            raise Exception("Este video no tiene subtitulos disponibles")
+
+        # Decodifica TODOS los caracteres Unicode escapados de una sola vez
+        tracks_str = re.sub(
+            r'\\u([0-9a-fA-F]{4})',
+            lambda m: chr(int(m.group(1), 16)),
+            match.group(1)
+        )
         tracks = json.loads(tracks_str)
-        
+
         track_url = None
         for lang_try in [lang, "es", "en", "pt", "de"]:
             for track in tracks:
@@ -33,21 +44,28 @@ def get_transcript(video_id: str, lang: str = "es"):
                     break
             if track_url:
                 break
+
         if not track_url and tracks:
             track_url = tracks[0]["baseUrl"]
+
         if not track_url:
-            raise Exception("No se encontró URL de subtítulos")
-        
+            raise Exception("No se encontro URL de subtitulos")
+
         tr = requests.get(track_url + "&fmt=json3", headers=HEADERS, timeout=15)
         data = tr.json()
-        
+
         parts = []
         for event in data.get("events", []):
             for seg in event.get("segs", []):
                 t = seg.get("utf8", "").strip()
                 if t and t != "\n":
                     parts.append(html.unescape(t))
-        
-        return {"success": True, "video_id": video_id, "transcript_text": " ".join(parts)}
+
+        return {
+            "success": True,
+            "video_id": video_id,
+            "transcript_text": " ".join(parts)
+        }
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
