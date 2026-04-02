@@ -13,14 +13,17 @@ HEADERS = {
 
 @app.get("/")
 def read_root():
-    return {"message": "Transcriptor v7 activo"}
+    return {"message": "Transcriptor v8 activo"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
     try:
-        r = requests.get(
+        # Usar sesion para mantener las cookies de YouTube entre requests
+        session = requests.Session()
+        session.headers.update(HEADERS)
+
+        r = session.get(
             f"https://www.youtube.com/watch?v={video_id}",
-            headers=HEADERS,
             timeout=15
         )
 
@@ -53,13 +56,12 @@ def get_transcript(video_id: str, lang: str = "es"):
         if not track_url.startswith("http"):
             track_url = "https://www.youtube.com" + track_url
 
-        # Pedir el XML sin modificar el formato
-        tr = requests.get(track_url, headers=HEADERS, timeout=15)
+        # La sesion reutiliza las cookies de la carga inicial
+        tr = session.get(track_url, timeout=15)
 
-        if not tr.text or tr.status_code != 200:
-            raise Exception(f"Respuesta vacia del servidor de subtitulos: {tr.status_code}")
+        if not tr.text:
+            raise Exception("Respuesta vacia - video sin acceso publico a subtitulos")
 
-        # Parsear el XML de subtitulos
         root = ET.fromstring(tr.content)
         parts = []
         for text_elem in root.iter("text"):
