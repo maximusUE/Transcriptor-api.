@@ -2,11 +2,14 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# Instalar Node.js (requerido por yt-dlp para YouTube)
+RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
+
 # Copiar dependencias e instalarlas
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código fuente
+# Copiar todos los archivos fuente
 COPY . .
 
 # Exponer el puerto de Uvicorn
