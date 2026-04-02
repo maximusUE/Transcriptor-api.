@@ -1,50 +1,49 @@
-import subprocess, re, glob, os, tempfile
+import re, json, html, requests
 from fastapi import FastAPI, HTTPException
 
-app = FastAPI(title="Logisk YT Transcriber - yt-dlp")
+app = FastAPI(title="Logisk YT Transcriber - Directo")
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
+    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+}
 
 @app.get("/")
 def read_root():
-    return {"message": "✅ Transcriptor con yt-dlp activo"}
+    return {"message": "✅ Transcriptor Directo iPhone"}
 
 @app.get("/transcript")
 def get_transcript(video_id: str, lang: str = "es"):
-    with tempfile.TemporaryDirectory() as tmpdir:
-        try:
-            url = f"https://www.youtube.com/watch?v={video_id}"
-            result = subprocess.run([
-              "yt-dlp",
-              "--skip-download",
-              "--write-auto-sub",
-              "--sub-langs", f"{lang},es,en",
-              "--sub-format", "vtt",
-              "--cookies", "cookies.txt",
-              "--extractor-args", "youtube:player_client=ios",
-              "-o", f"{tmpdir}/sub",
-               url
-                    ], capture_output=True, text=True, timeout=60)
-
-    
-
-            vtt_files = glob.glob(f"{tmpdir}/*.vtt")
-            if not vtt_files:
-                raise Exception(f"Sin subtítulos. Error: {result.stderr[:400]}")
-
-            with open(vtt_files[0], 'r', encoding='utf-8') as f:
-                content = f.read()
-
-            lines = []
-            for line in content.split('\n'):
-                line = line.strip()
-                if line and '-->' not in line and not line.startswith('WEBVTT') and not re.match(r'^\d+$', line):
-                    clean = re.sub(r'<[^>]+>', '', line)
-                    if clean:
-                        lines.append(clean)
-
-            text = ' '.join(lines)
-            text = re.sub(r'(.{20,}?)\1+', r'\1', text)
-
-            return {"success": True, "video_id": video_id, "transcript_text": text}
-
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e))
+    try:
+        r = requests.get(f"https://www.youtube.com/watch?v={video_id}", headers=HEADERS, timeout=15)
+        match = re.search(r'"captionTracks":(\[.*?\])', r.text)
+        if not match:
+            raise Exception("Este video no tiene subtítulos disponibles")
+        
+        tracks = json.loads(match.group(1))
+        track_url = None
+        for lang_try in [lang, "es", "en", "pt", "de"]:
+            for track in tracks:
+                if track.get("languageCode", "").startswith(lang_try):
+                    track_url = track["baseUrl"]
+                    break
+            if track_url:
+                break
+        if not track_url and tracks:
+            track_url = tracks[0]["baseUrl"]
+        if not track_url:
+            raise Exception("No se encontró URL de subtítulos")
+        
+        tr = requests.get(track_url + "&fmt=json3", headers=HEADERS, timeout=15)
+        data = tr.json()
+        
+        parts = []
+        for event in data.get("events", []):
+            for seg in event.get("segs", []):
+                t = seg.get("utf8", "").strip()
+                if t and t != "\n":
+                    parts.append(html.unescape(t))
+        
+        return {"success": True, "video_id": video_id, "transcript_text": " ".join(parts)}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
