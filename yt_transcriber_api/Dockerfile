@@ -2,17 +2,12 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Instalar Node.js y crear el enlace "node" que busca yt-dlp
-RUN apt-get update && apt-get install -y nodejs npm && \
-    ln -sf /usr/bin/nodejs /usr/local/bin/node && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Copiar dependencias e instalarlas
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar todos los archivos
-COPY . .
+COPY main.py .
 
 EXPOSE 8000
 
